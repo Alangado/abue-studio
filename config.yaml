@@ -1,0 +1,29 @@
+# Configuración del Clipero de Abue Studio
+canal_twitch: abuegod
+carpeta_salida: clips
+
+clips:
+  por_stream: 6          # cuántos clips proponer por VOD
+  duracion: 35           # segundos por clip
+  antes_del_pico: 22     # segundos antes del momento más intenso
+  separacion_minima: 60  # segundos mínimos entre clips
+
+# Dónde está tu facecam en el video original de 1920x1080 (x, y, ancho, alto).
+# Solo se usa cuando corres `procesar --con-facecam`.
+facecam: null
+# Ejemplo: facecam: {x: 1440, y: 780, w: 480, h: 300}
+
+subtitulos:
+  activar: true          # requiere faster-whisper instalado
+  modelo: small          # tiny, base, small, medium
+  idioma: es
+
+palabras_clave:          # suben el puntaje de un momento si se dicen
+  - no mames
+  - vamos
+  - lo tengo
+  - qué fue eso
+  - clutch
+  - le di
+  - ganamos
+  - torneo
