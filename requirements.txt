@@ -1,0 +1,5 @@
+yt-dlp>=2026.10.26
+numpy>=2.0
+PyYAML>=6.0
+# Opcional, para subtítulos y detección por palabras:
+# faster-whisper>=1.1
