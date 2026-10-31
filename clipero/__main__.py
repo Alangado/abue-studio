@@ -66,7 +66,8 @@ def cmd_procesar(cfg: dict, args) -> int:
 
     print("Buscando los mejores momentos...")
     c = cfg["clips"]
-    p = momentos.puntaje(momentos.volumen_por_segundo(audio), segmentos, cfg.get("palabras_clave"))
+    movimiento = momentos.movimiento_por_segundo(video)
+    p = momentos.puntaje(momentos.volumen_por_segundo(audio), segmentos, cfg.get("palabras_clave"), movimiento)
     elegidos = momentos.elegir_momentos(p, c["por_stream"], c["duracion"], c["antes_del_pico"], c["separacion_minima"])
 
     facecam = None
@@ -75,6 +76,8 @@ def cmd_procesar(cfg: dict, args) -> int:
         if not facecam:
             print("Aviso: pediste --con-facecam pero config.yaml no tiene el recuadro 'facecam'; sale sin cámara.")
     carpeta.mkdir(parents=True, exist_ok=True)
+    if segmentos is not None:
+        (carpeta / "transcripcion.json").write_text(json.dumps(segmentos, ensure_ascii=False), encoding="utf-8")
     clips = []
     for i, m in enumerate(elegidos, 1):
         nombre = f"clip_{i:02d}"
@@ -82,13 +85,16 @@ def cmd_procesar(cfg: dict, args) -> int:
         if segmentos is not None:
             ass = subtitulos.escribir_ass(segmentos, m["inicio"], m["fin"], carpeta / f"{nombre}.ass")
         print(f"  {nombre}: {m['inicio']:.0f}s a {m['fin']:.0f}s (puntaje {m['puntaje']})")
-        render.vertical(video, m["inicio"], m["fin"], carpeta / f"{nombre}.mp4", facecam, ass)
+        render.vertical(video, m["inicio"], m["fin"], carpeta / f"{nombre}.mp4", facecam, ass,
+                        pico=m["pico"] - m["inicio"])
         offset = args.desde or 0
         clips.append({
             "archivo": f"{nombre}.mp4",
             "inicio_en_vod": m["inicio"] + offset,
             "fin_en_vod": m["fin"] + offset,
+            "pico_en_clip": m["pico"] - m["inicio"],
             "puntaje": m["puntaje"],
+            "gancho": "",
             "texto": " ".join(s["texto"] for s in (segmentos or [])
                               if s["fin"] > m["inicio"] and s["inicio"] < m["fin"]),
             "estado": "pendiente",  # pendiente | aprobado | descartado | publicado
@@ -96,11 +102,37 @@ def cmd_procesar(cfg: dict, args) -> int:
 
     manifest = {
         "vod": vod,
+        "con_facecam": bool(facecam),
+        "desde": args.desde or 0,
         "generado": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "clips": clips,
     }
     (carpeta / "manifest.json").write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
     print(f"Listo: {len(clips)} clips en {carpeta}")
+    return 0
+
+
+def cmd_editar(cfg: dict, args) -> int:
+    """Vuelve a exportar los clips de un VOD con el gancho escrito en manifest.json."""
+    carpeta = RAIZ / cfg["carpeta_salida"] / args.vod
+    manifest = json.loads((carpeta / "manifest.json").read_text(encoding="utf-8"))
+    video = RAIZ / "descargas" / f"{args.vod}.mp4"
+    if not video.exists():
+        print("Descargando el VOD otra vez...")
+        desde = manifest.get("desde") or None
+        video = vods.descargar_vod(args.vod, RAIZ / "descargas", desde=desde)
+    trans = carpeta / "transcripcion.json"
+    segmentos = json.loads(trans.read_text(encoding="utf-8")) if trans.exists() else []
+    facecam = cfg.get("facecam") if manifest.get("con_facecam") else None
+    offset = manifest.get("desde") or 0
+    for c in manifest["clips"]:
+        if args.clip and c["archivo"] != f"clip_{args.clip:02d}.mp4":
+            continue
+        ini, fin = c["inicio_en_vod"] - offset, c["fin_en_vod"] - offset
+        nombre = Path(c["archivo"]).stem
+        ass = subtitulos.escribir_ass(segmentos, ini, fin, carpeta / f"{nombre}.ass", c.get("gancho") or None)
+        print(f"  {nombre}: gancho '{c.get('gancho', '')}'")
+        render.vertical(video, ini, fin, carpeta / c["archivo"], facecam, ass, pico=c.get("pico_en_clip"))
     return 0
 
 
@@ -116,9 +148,12 @@ def main(argv: list[str] | None = None) -> int:
     pp.add_argument("--hasta", type=float, help="Segundo final del tramo a descargar")
     pp.add_argument("--con-facecam", action="store_true",
                     help="Pone tu facecam arriba del clip (usa el recuadro 'facecam' de config.yaml)")
+    pe = sub.add_parser("editar", help="Re-exporta clips con el gancho escrito en manifest.json")
+    pe.add_argument("--vod", required=True)
+    pe.add_argument("--clip", type=int, help="Solo este número de clip")
     args = ap.parse_args(argv)
     cfg = cargar_config(Path(args.config))
-    return {"listar": cmd_listar, "procesar": cmd_procesar}[args.comando](cfg, args)
+    return {"listar": cmd_listar, "procesar": cmd_procesar, "editar": cmd_editar}[args.comando](cfg, args)
 
 
 if __name__ == "__main__":

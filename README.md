@@ -38,4 +38,13 @@ Los clips quedan en `clips/<id del VOD>/` junto con `manifest.json`, donde cada 
 
 ## Cómo elige los momentos
 
-Mide el volumen de cada segundo (gritos, disparos, emoción) y le suma puntos a los tramos donde dices alguna palabra clave. Toma los picos más altos con al menos 60 segundos entre ellos.
+Mide el volumen de cada segundo (gritos, disparos, emoción), le suma puntos a los tramos donde dices alguna palabra clave y descarta menús, lobby y pantallas de carga (poco movimiento en pantalla). Toma los picos más altos con al menos 60 segundos entre ellos.
+
+## Gancho y reedición
+
+Cada clip trae un campo `gancho` en `manifest.json`. Escribe ahí el texto que va arriba los primeros 3 segundos y corre:
+
+```powershell
+python -m clipero editar --vod 2895541495           # todos los clips
+python -m clipero editar --vod 2895541495 --clip 2  # solo uno
+```

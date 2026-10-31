@@ -11,6 +11,7 @@ from pathlib import Path
 import numpy as np
 
 MUESTRAS = 16000  # Hz
+UMBRAL_QUIETO = 8.0  # movimiento promedio debajo del cual la pantalla se considera menú o lobby
 
 
 def leer_audio(video: Path) -> np.ndarray:
@@ -31,14 +32,37 @@ def volumen_por_segundo(audio: np.ndarray) -> np.ndarray:
     return 20 * np.log10(rms)
 
 
+def movimiento_por_segundo(video: Path, fps: int = 2) -> np.ndarray:
+    """Cuánto cambia la imagen cada segundo (0 = pantalla quieta, como menús o lobby)."""
+    ancho, alto = 64, 36
+    cmd = ["ffmpeg", "-v", "error", "-i", str(video), "-an",
+           "-vf", f"fps={fps},scale={ancho}:{alto},format=gray", "-f", "rawvideo", "-"]
+    crudo = subprocess.run(cmd, check=True, capture_output=True).stdout
+    cuadros = np.frombuffer(crudo, dtype=np.uint8).reshape(-1, alto, ancho).astype(np.float32)
+    if len(cuadros) < 2:
+        return np.zeros(len(cuadros) // fps)
+    dif = np.abs(np.diff(cuadros, axis=0)).mean(axis=(1, 2))
+    dif = np.concatenate([[dif[0]], dif])
+    segundos = len(dif) // fps
+    return dif[: segundos * fps].reshape(segundos, fps).mean(axis=1)
+
+
 def puntaje(volumen_db: np.ndarray, segmentos: list[dict] | None = None,
-            palabras_clave: list[str] | None = None, ventana: int = 5) -> np.ndarray:
-    """Puntaje por segundo: volumen normalizado y suavizado, más bonos por palabras clave."""
+            palabras_clave: list[str] | None = None, movimiento: np.ndarray | None = None,
+            ventana: int = 5) -> np.ndarray:
+    """Puntaje por segundo: volumen normalizado y suavizado, bonos por palabras clave,
+    y castigo a los tramos sin acción en pantalla (menús, lobby, pantallas de carga)."""
     if len(volumen_db) == 0:
         return volumen_db
     z = (volumen_db - np.median(volumen_db)) / (np.std(volumen_db) + 1e-6)
     kernel = np.ones(ventana) / ventana
     p = np.convolve(z, kernel, mode="same")
+    if movimiento is not None and len(movimiento):
+        n = min(len(p), len(movimiento))
+        mov = np.convolve(movimiento[:n], np.ones(15) / 15, mode="same")
+        quieto = mov < UMBRAL_QUIETO
+        p = p[:n]
+        p[quieto] -= 4.0
     if segmentos and palabras_clave:
         claves = [c.lower() for c in palabras_clave]
         for s in segmentos:
