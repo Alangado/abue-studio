@@ -9,7 +9,7 @@ clips:
   separacion_minima: 60  # segundos mínimos entre clips
 
 # Dónde está tu facecam en el video original de 1920x1080 (x, y, ancho, alto).
-# Pon null si no usas facecam.
+# Solo se usa cuando corres `procesar --con-facecam`.
 facecam: null
 # Ejemplo: facecam: {x: 1440, y: 780, w: 480, h: 300}
 

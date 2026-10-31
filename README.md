@@ -24,6 +24,7 @@ pip install faster-whisper   # para los subtítulos
 python -m clipero listar                      # tus VODs y cuáles ya tienen clips
 python -m clipero procesar                    # el VOD más nuevo sin procesar
 python -m clipero procesar --vod 2868862053   # uno en particular
+python -m clipero procesar --con-facecam      # stream donde usaste cámara
 ```
 
 Los clips quedan en `clips/<id del VOD>/` junto con `manifest.json`, donde cada clip empieza como `pendiente` hasta que lo apruebes.
@@ -31,7 +32,7 @@ Los clips quedan en `clips/<id del VOD>/` junto con `manifest.json`, donde cada 
 ## Ajustes (`config.yaml`)
 
 - `clips.por_stream`, `clips.duracion`: cuántos clips y de cuántos segundos.
-- `facecam`: el recuadro de tu cámara en el video original; con él la cámara va arriba y el juego abajo.
+- `facecam`: el recuadro de tu cámara en el video original. Solo se usa con `--con-facecam`: la cámara va arriba y el juego abajo.
 - `subtitulos.modelo`: `small` es buen balance; `medium` es más preciso pero más lento.
 - `palabras_clave`: frases que, si las dices, suben el puntaje de ese momento.
 

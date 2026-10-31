@@ -5,6 +5,7 @@ Uso:
     python -m clipero procesar               # el VOD más nuevo sin procesar
     python -m clipero procesar --vod 2865569083
     python -m clipero procesar --vod 2865569083 --desde 0 --hasta 600   # solo un tramo
+    python -m clipero procesar --con-facecam  # en streams donde usaste cámara
 """
 from __future__ import annotations
 
@@ -68,6 +69,11 @@ def cmd_procesar(cfg: dict, args) -> int:
     p = momentos.puntaje(momentos.volumen_por_segundo(audio), segmentos, cfg.get("palabras_clave"))
     elegidos = momentos.elegir_momentos(p, c["por_stream"], c["duracion"], c["antes_del_pico"], c["separacion_minima"])
 
+    facecam = None
+    if args.con_facecam:
+        facecam = cfg.get("facecam")
+        if not facecam:
+            print("Aviso: pediste --con-facecam pero config.yaml no tiene el recuadro 'facecam'; sale sin cámara.")
     carpeta.mkdir(parents=True, exist_ok=True)
     clips = []
     for i, m in enumerate(elegidos, 1):
@@ -76,7 +82,7 @@ def cmd_procesar(cfg: dict, args) -> int:
         if segmentos is not None:
             ass = subtitulos.escribir_ass(segmentos, m["inicio"], m["fin"], carpeta / f"{nombre}.ass")
         print(f"  {nombre}: {m['inicio']:.0f}s a {m['fin']:.0f}s (puntaje {m['puntaje']})")
-        render.vertical(video, m["inicio"], m["fin"], carpeta / f"{nombre}.mp4", cfg.get("facecam"), ass)
+        render.vertical(video, m["inicio"], m["fin"], carpeta / f"{nombre}.mp4", facecam, ass)
         offset = args.desde or 0
         clips.append({
             "archivo": f"{nombre}.mp4",
@@ -108,6 +114,8 @@ def main(argv: list[str] | None = None) -> int:
     pp.add_argument("--titulo", help="Título del VOD (opcional, para el manifest)")
     pp.add_argument("--desde", type=float, help="Segundo inicial del tramo a descargar")
     pp.add_argument("--hasta", type=float, help="Segundo final del tramo a descargar")
+    pp.add_argument("--con-facecam", action="store_true",
+                    help="Pone tu facecam arriba del clip (usa el recuadro 'facecam' de config.yaml)")
     args = ap.parse_args(argv)
     cfg = cargar_config(Path(args.config))
     return {"listar": cmd_listar, "procesar": cmd_procesar}[args.comando](cfg, args)
